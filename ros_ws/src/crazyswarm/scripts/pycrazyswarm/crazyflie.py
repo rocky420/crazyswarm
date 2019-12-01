@@ -221,3 +221,6 @@ class CrazyflieServer:
     def setParam(self, name, value):
         rospy.set_param("/allcfs/" + name, value)
         self.updateParamsService([name])
+
+    def getSortedIds(self):
+        return sorted(self.crazyfliesById.keys())

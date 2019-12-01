@@ -251,3 +251,6 @@ class CrazyflieServer:
 
     def setParam(self, name, value):
         print("WARNING: setParam not implemented in simulation!")
+
+    def getSortedIds(self):
+        return sorted(self.crazyfliesById.keys())
