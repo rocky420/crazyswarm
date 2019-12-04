@@ -12,3 +12,4 @@ launch # ignore launch symlink
 !*ros_ws/*launch* # don't ignore folders with launch in the name
 bags/*
 ros_ws/src/crazyswarm/scripts/.idea/* 
+ros_ws/src/crazyswarm/launch/crazyflies.yaml
