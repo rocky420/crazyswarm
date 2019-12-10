@@ -34,7 +34,7 @@
           pNAcc_z: 2.0
       # tracking
       motion_capture_type: "optitrack" # one of none,vicon,optitrack,qualisys,vrpn
-      object_tracking_type: "motionCapture" # one of motionCapture,libobjecttracker
+      object_tracking_type: "libobjecttracker" # one of motionCapture,libobjecttracker
       send_position_only: False # set to False to send position+orientation; set to True to send position only
       # vicon_host_name: "vicon"
       optitrack_host_name: "192.168.1.249"
