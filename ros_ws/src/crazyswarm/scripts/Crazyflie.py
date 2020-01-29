@@ -19,8 +19,8 @@ class Crazyflie:
         self.id = id_num
         self.init = False
         
-        # self.secs = secs
-        # self.prev_secs = prev_secs
+        self.secs = 0
+        self.prev_secs = 0
         
         self.pos_neu = np.zeros(3)
         self.prev_pos_neu = np.zeros(3)
@@ -66,11 +66,11 @@ class Crazyflie:
     def __vrpn_pose_callback(self, msg):
         
         if self.init :
-            self.prev_secs = self.secs
+            self.prev_secs = np.copy(self.secs)
             for i in range(0,3):
                 self.prev_pos_neu[i] = self.pos_neu[i];
 
-        self.secs = msg.header.stamp.secs + msg.header.stamp.nsecs *10^-9
+        self.secs =  msg.header.stamp.secs + msg.header.stamp.nsecs * pow(10,-9)
 
         self.pos_neu[0] = msg.pose.position.x
         self.pos_neu[1] = msg.pose.position.y
@@ -81,3 +81,4 @@ class Crazyflie:
                 self.vel_neu[i] = (self.pos_neu[i] - self.prev_pos_neu[i])/(self.secs-self.prev_secs)
 
         self.init = True
+        #rospy.loginfo((self.secs - self.prev_secs))

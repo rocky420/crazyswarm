@@ -31,24 +31,26 @@ def hand_tracking_threading(rate):
     hand = Hand(rate)
 
 def swarm_threading(rate):
+    global crazyswarm
     crazyswarm = Crazyswarm(nb_agents = NB_AGENTS, rate= rate)
-    time.sleep(1)
+    # time.sleep(1)
 
-    height = 1
-    duration = 3
-    crazyswarm.takeoff(height, duration)
+    # height = 1
+    # duration = 3
+    # crazyswarm.takeoff(height, duration)
 
     
-    duration_iter = 15 * frequency
+    # duration_iter = 10 * frequency
 
-    for i in xrange(duration_iter):
-        crazyswarm.flocking_behaviour(rate)
-        rate.sleep()
+    # for i in xrange(duration_iter):
+    #     crazyswarm.flocking_behaviour(rate)
+    #     rate.sleep()
 
-    duration = 2
+    # duration = 2
 
-    crazyswarm.land(duration)
+    # crazyswarm.land(duration)
 
+    #time.sleep(10)
 
 
 if __name__ == '__main__':  
@@ -67,6 +69,8 @@ if __name__ == '__main__':
 
 
     swarm_threading(rate)
+
+    del crazyswarm
 
     #threading.Thread(target = swarm_threading, args = (rate,)).start()
 
