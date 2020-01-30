@@ -28,7 +28,8 @@ class Crazyflie:
 
         self.vel_neu = np.zeros(3)
 
-        self.master_target = np.zeros(3)
+        self.target_pos = np.zeros(3)
+
 
         self.pos_neu_history =  np.array([])
         self.pos_cmd_history =  np.array([])

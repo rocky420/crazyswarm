@@ -21,10 +21,13 @@ FLYING = 2
 LANDING = 3
 WAIT_FOR_TAKE_OFF = 4
 WAIT_FOR_LANDING = 5
+HAND_ROOM_SCALE = 5
+
+
 
 
 class Crazyswarm:
-    def __init__(self, nb_agents, rate):
+    def __init__(self, nb_agents, rate, debug = False):
         self.agents = []
         self.nb_agents = 0
         if nb_agents>0:
@@ -33,14 +36,19 @@ class Crazyswarm:
         self.target_height = 0
         self.rate = rate
         self.flying = False 
+        self.debug = debug
 
+
+        self.master_target = np.zeros(3)
+        self.desired_positions = np.zeros((self.nb_agents, 3))
         self.old_desired_positions = np.zeros((self.nb_agents, 3))
 
         self.desired_velocities = np.zeros((self.nb_agents, 3))
-        self.desired_positions = np.zeros((self.nb_agents, 3))
+        self.rel_desired_positions = np.zeros((self.nb_agents, 3))
 
         self.secs = 0
-        self.prev_secs = 0
+        self.prev_secs = self.secs
+        self.log_time = []
 
         self.state = LANDED
 
@@ -53,7 +61,7 @@ class Crazyswarm:
         self.swarm_state_pub =  rospy.Publisher(cmd_topic, Int16, queue_size=10)
 
         #Subscribers
-        rospy.Subscriber("/hand/pose", PositionMsg, self.__send_relative_pos_commands)
+        rospy.Subscriber("/hand/pose", PositionMsg, self.__get_master_target)
 
         rospy.loginfo("Done initializing crazyflies ")
 
@@ -63,7 +71,7 @@ class Crazyswarm:
         mouseListener.start()
 
         rospy.loginfo("Done initializing mouseListener")
-        self.__control_loop()
+        if not self.debug: self.__control_loop()
 
 
     def onClickCallback(self, x, y, button, pressed):
@@ -130,6 +138,7 @@ class Crazyswarm:
                 cf.set_pos_cmd_history(land_positions[drone_id])
                 cf.set_pos_history(current_positions[drone_id])
             self.rate.sleep()
+        rospy.logwarn(self.log_time)
         self.state = LANDED
 
     def takeoff(self, height, duration):
@@ -162,19 +171,20 @@ class Crazyswarm:
                 cf.set_pos_history(current_positions[drone_id])
             self.rate.sleep()
 
-        self.old_desired_positions = self.get_positions()
-        rospy.logwarn(self.old_desired_positions)
-        self.agents[0].master_target = self.agents[0].pos_neu
+        self.desired_positions = self.get_positions()
+        self.old_desired_positions = self.desired_positions
+        self.master_target = final_positions[0]
         self.state = FLYING
 
     def send_pos_commands(self, cmd_positions):
-        for drone_id in range(1,self.nb_agents):
+        for drone_id in xrange(self.nb_agents):
             cf = self.agents[drone_id]
             
             #height security at 3m
             for i in xrange(3):
-                if cmd_positions[drone_id][i] > 3 : cmd_positions[drone_id][i] = 3
-
+                if cmd_positions[drone_id][i] > 4 : 
+                    cmd_positions[drone_id][i] = 4
+                    rospy.logwarn("security limitations")
 
             #horizontal security
             #TODO
@@ -186,23 +196,21 @@ class Crazyswarm:
             msg.yaw = 0
             msg.header.seq = drone_id + 1
             msg.header.stamp = rospy.get_rostime()
-            cf.cmd_pos_pub.publish(msg)
+            if not self.debug: cf.cmd_pos_pub.publish(msg)
             cf.set_pos_cmd_history(cmd_positions[drone_id])
 
     def flocking_behaviour(self):
-        if(self.nb_agents) > 1:
-            
-            slave_cmd_positions = self.__slave_cmd_positions()
+        slave_cmd_positions = self.__slave_cmd_positions()
 
-            cmd_positions = slave_cmd_positions
-            for i in range(1, self.nb_agents):
-                cmd_positions[i][2] = self.target_height
+        cmd_positions = slave_cmd_positions
+        cmd_positions[0] = self.master_target
+        for i in range(1, self.nb_agents):
+            cmd_positions[i][2] = self.target_height
 
-            self.send_pos_commands(cmd_positions)
-
-
+        self.send_pos_commands(cmd_positions)
     ############# Private method #############
     def __control_loop(self):
+        rospy.loginfo("Entered in the control loop") 
         while not rospy.is_shutdown():
             if self.state == WAIT_FOR_TAKE_OFF:
                 self.takeoff(height = 1, duration = 3)
@@ -215,57 +223,34 @@ class Crazyswarm:
             self.rate.sleep()
 
 
-
-    def __send_relative_pos_commands(self, handPosition):
+    def __get_master_target(self, handPosition):
         #send a position target relative to the position of the master
         if self.state == FLYING:
-
             drone_id = 0 #The master is always the drone 0
             cf = self.agents[drone_id]
-            
             if self.clutchActivated:
-                current_master_target = np.copy(cf.master_target)
+                current_master_target = np.copy(cf.target_pos)
                 
                 deltaHandPosition = np.array([handPosition.x, handPosition.y, handPosition.z])
-
-                new_master_target = current_master_target + deltaHandPosition
-
-                #distance security at 3m
-                for i in xrange(3):
-                    if new_master_target[i] > 3: new_master_target[i] = 3
-        
+                new_master_target = current_master_target + deltaHandPosition * HAND_ROOM_SCALE        
                 self.target_height = np.copy(new_master_target[2])
-            
                 #To avoid ground crashes, lower limit at 20 cm...
                 if new_master_target[2] < 0.2: new_master_target[2] = 0.2
-            
             else: 
-                new_master_target = np.copy(cf.master_target)
+                new_master_target = np.copy(cf.target_pos)
                 new_master_target[2] = self.target_height
 
-
-
-            msg = PositionMsg()
-            msg.x = new_master_target[0]
-            msg.y = new_master_target[1]
-            msg.z = new_master_target[2]
-            msg.yaw = 0
-            msg.header.seq = drone_id + 1
-            msg.header.stamp = rospy.get_rostime()
-
-            cf.cmd_pos_pub.publish(msg)
-            cf.set_pos_cmd_history(new_master_target)
-            cf.master_target = new_master_target
-
+            self.master_target = new_master_target
+            cf.target_pos = self.master_target
 
 
     def __get_cog(self):
         #calculate Center Of Gravity of the swarm
         cog = np.zeros(3)
         for drone_id in xrange(self.nb_agents):
-            cf = self.agents[drone_id]
-            cog += cf.pos_neu
+            cog+= self.agents[drone_id].pos_neu
         cog /= self.nb_agents
+
         return cog
 
     def __get_average_velocity(self):
@@ -293,7 +278,7 @@ class Crazyswarm:
                 diff = cf.pos_neu[0:2] - cf2.pos_neu[0:2]
                 difflen = np.linalg.norm(diff)
                 if not difflen == 0:
-                    separation = separation + diff/(difflen*difflen)
+                    separation += diff/(difflen*difflen)
 
         sep[0:2] = separation
         return sep
@@ -307,30 +292,61 @@ class Crazyswarm:
 
 
     def __slave_cmd_positions(self):
-        k_coh = 0.2
-        k_sep = 0.08
-        k_align = 0.01
+        k_coh = 2
+        k_sep = 0.8
+        k_align = 0.1
+
         dt = 0.1
-        P = 0.1
-        D = 0.3
+        P = 2
+        D = 2
+
         cmd_positions = np.zeros((self.nb_agents, 3))
+        self.prev_secs = self.secs
+        self.secs = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9)
+        self.log_time.append(self.secs - self.prev_secs)
         
+        self.old_desired_positions = self.desired_positions
+
         for drone_id in range(1, self.nb_agents):
             cf = self.agents[drone_id]
             #dt = (cf.secs - cf.prev_secs)*10^-9
-           
-            acc_reynold = k_coh*self.__cohesion(cf) + k_sep*self.__separation(cf,drone_id) + k_align*self.__alignment(cf)
+            
+            acc_reynold = k_coh*self.__cohesion(cf) + k_sep*self.__separation(cf,drone_id)
+            
+            max_acc = 2
+            for i in xrange(3):
+                if acc_reynold[i] > max_acc: acc_reynold[i] = max_acc
+                if acc_reynold[i] < -max_acc: acc_reynold[i] = -max_acc
+
+
+            if self.debug: rospy.loginfo("acc_reynold : " + str(drone_id) + str(acc_reynold))
+            if self.debug: rospy.loginfo("coh : " + str(drone_id) + str(k_coh*self.__cohesion(cf)))
+            if self.debug: rospy.loginfo("separation : " + str(drone_id) + str(k_sep*self.__separation(cf, drone_id)))
+            if self.debug: rospy.loginfo("alignement : " + str(drone_id) + str(k_align*self.__alignment(cf)))
 
             self.desired_velocities[drone_id] += acc_reynold*dt 
-            self.desired_positions[drone_id] += self.desired_velocities[drone_id]*dt
 
-            self.old_desired_positions[drone_id] += P*self.desired_positions[drone_id] + D*self.desired_velocities[drone_id]
+            self.rel_desired_positions[drone_id] += self.desired_velocities[drone_id]*dt
 
-        
-        cmd_positions = self.old_desired_positions
-        rospy.loginfo(cmd_positions)
+
+            max_relative_dist = 0.1
+
+            for i in xrange(3):
+                if self.rel_desired_positions[drone_id][i] > max_relative_dist: self.rel_desired_positions[drone_id][i] = max_relative_dist
+                if self.rel_desired_positions[drone_id][i] < -max_relative_dist: self.rel_desired_positions[drone_id][i] = -max_relative_dist
+
+            rospy.loginfo("self.rel_desired_positions" + str(self.rel_desired_positions[drone_id]))
+
+            self.desired_positions[drone_id] = cf.pos_neu + self.rel_desired_positions[drone_id]
+
+            #PID CONTROL
+
+            u = P*(self.desired_positions[drone_id] - cf.pos_neu) + D*(self.desired_positions[drone_id] - self.old_desired_positions[drone_id])/dt
+
+            cmd_positions[drone_id] = cf.pos_neu + u
+
+        #rospy.loginfo(cmd_positions)
             #rospy.loginfo(cmd_positions[drone_id])
-            #rospy.loginfo(acc_reynold)
         #rospy.loginfo()
 
         return cmd_positions

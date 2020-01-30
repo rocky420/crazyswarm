@@ -49,7 +49,9 @@ class Hand:
 
             self.delta_hand_pos = self.raw_hand_pos - self.prev_raw_hand_pos
 
-            if np.linalg.norm(self.delta_hand_pos) > 1 : self.delta_hand_pos /= np.linalg.norm(self.delta_hand_pos)
+            if np.linalg.norm(self.delta_hand_pos) > 1 : 
+                self.delta_hand_pos /= np.linalg.norm(self.delta_hand_pos)
+                rospy.logwarn("Hand security limitations")
 
             posMsg = PositionMsg()
             posMsg.x = self.delta_hand_pos[0]

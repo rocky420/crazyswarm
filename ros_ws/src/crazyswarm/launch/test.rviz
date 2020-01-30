@@ -54,13 +54,23 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: true
+        cf1:
+          Value: true
+        cf2:
+          Value: true
+        world:
+          Value: true
       Marker Scale: 1
       Name: TF
       Show Arrows: true
       Show Axes: true
       Show Names: true
       Tree:
-        {}
+        world:
+          cf1:
+            {}
+          cf2:
+            {}
       Update Interval: 0
       Value: true
     - Alpha: 1
