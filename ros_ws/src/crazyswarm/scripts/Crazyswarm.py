@@ -6,7 +6,10 @@ import time
 from  std_msgs.msg import Int16
 from pycrazyswarm import *
 from pynput import mouse
-
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import threading
+import scipy.integrate
 
 # Crazyflie
 from crazyflie_driver.srv import *
@@ -27,7 +30,10 @@ HAND_ROOM_SCALE = 5
 
 
 class Crazyswarm:
-    def __init__(self, nb_agents, rate, debug = False):
+    def __init__(self, nb_agents, rate, debug= False ):
+        self.init = False
+        self.show = True
+
         self.agents = []
         self.nb_agents = 0
         if nb_agents>0:
@@ -43,11 +49,22 @@ class Crazyswarm:
         self.desired_positions = np.zeros((self.nb_agents, 3))
         self.old_desired_positions = np.zeros((self.nb_agents, 3))
 
-        self.desired_velocities = np.zeros((self.nb_agents, 3))
-        self.rel_desired_positions = np.zeros((self.nb_agents, 3))
+        self.calc_velocities = np.zeros((self.nb_agents, 3))
+        self.calc_positions = np.zeros((self.nb_agents, 3))
+
+        self.acc_array = []
+        self.vel_array = []
+        self.pos_array = []
+        self.time_array = []
+
+
+        self.debug_velocities = [[],[]]
+
 
         self.secs = 0
         self.prev_secs = self.secs
+        self.initial_secs = 0
+        self.current_time = 0
         self.log_time = []
 
         self.state = LANDED
@@ -71,7 +88,10 @@ class Crazyswarm:
         mouseListener.start()
 
         rospy.loginfo("Done initializing mouseListener")
+
+        
         if not self.debug: self.__control_loop()
+
 
 
     def onClickCallback(self, x, y, button, pressed):
@@ -86,7 +106,31 @@ class Crazyswarm:
                 self.state = WAIT_FOR_TAKE_OFF
             elif self.state == FLYING:
                 self.state = WAIT_FOR_LANDING
+        rospy.logerr("##########################")
+        # labels = ["scipy velocites", "self made velocities"] 
+        # plt.plot(self.debug_velocities[0][1])
+        # plt.plot(self.debug_velocities[1][1])
+        # plt.legend(labels)
+        
+        # plt.show() 
+        # time.sleep(3)
+        # plt.close()
 
+        #rospy.loginfo(self.debug_velocities[0])
+        #rospy.logwarn(self.debug_velocities[1])
+
+        # acc_x = [acc_x[0] for acc_x in self.acc_array]
+        # rospy.logwarn(acc_x)
+        # sp = np.fft.fft(acc_x)
+        # freq = np.fft.fftfreq(len(acc_x))
+        # plt.plot(freq, sp.real, freq, sp.imag)
+        # labels = ["real", "imag"]
+        # if self.show: 
+        #     plt.show()
+        #     plt.legend(labels)
+        #     self.show = False
+        # else:
+        #     plt.close()
 
 
     def add(self, crazyflie):
@@ -134,11 +178,37 @@ class Crazyswarm:
                 msg.yaw = 0
                 msg.header.seq = drone_id + 1
                 msg.header.stamp = rospy.get_rostime()
-                cf.cmd_pos_pub.publish(msg)
+                if not self.debug: cf.cmd_pos_pub.publish(msg)
                 cf.set_pos_cmd_history(land_positions[drone_id])
                 cf.set_pos_history(current_positions[drone_id])
             self.rate.sleep()
-        rospy.logwarn(self.log_time)
+        self.init = False
+
+        # #rospy.logwarn(self.log_time)
+        plt.figure(1)
+        plt.plot(self.time_array, self.acc_array)
+        name = "acc"
+        plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
+
+        plt.figure(2)
+        plt.plot(self.time_array, self.vel_array)
+        name = "vel"
+        plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
+
+        # plt.figure(3)
+        # plt.plot(self.time_array, self.pos_array)
+        # name = "pos"
+        # plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
+
+
+        # plt.figure(4)
+        # plt.plot(self.time_array, [np.linalg.norm(pos) for pos in self.pos_array])
+        # name = "pos"
+        # #plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
+        # plt.legend("relative_target_pos norm")
+        plt.show()
+        time.sleep(3)
+        plt.close()
         self.state = LANDED
 
     def takeoff(self, height, duration):
@@ -166,7 +236,7 @@ class Crazyswarm:
                 msg.header.seq = drone_id + 1
                 msg.header.stamp = rospy.get_rostime()
 
-                cf.cmd_pos_pub.publish(msg)
+                if not self.debug: cf.cmd_pos_pub.publish(msg)
                 cf.set_pos_cmd_history(final_positions[drone_id])
                 cf.set_pos_history(current_positions[drone_id])
             self.rate.sleep()
@@ -211,6 +281,8 @@ class Crazyswarm:
     ############# Private method #############
     def __control_loop(self):
         rospy.loginfo("Entered in the control loop") 
+        # x = threading.Thread(target=self.live_plot_threading, args=())
+        # x.start()
         while not rospy.is_shutdown():
             if self.state == WAIT_FOR_TAKE_OFF:
                 self.takeoff(height = 1, duration = 3)
@@ -221,6 +293,7 @@ class Crazyswarm:
                 self.flocking_behaviour()
 
             self.rate.sleep()
+        rospy.loginfo("Over")
 
 
     def __get_master_target(self, handPosition):
@@ -291,57 +364,113 @@ class Crazyswarm:
         return align
 
 
+
     def __slave_cmd_positions(self):
         k_coh = 2
         k_sep = 0.8
         k_align = 0.1
 
-        dt = 0.1
-        P = 2
-        D = 2
+        P = 1
+        D = 0
+        if not self.init:
+            self.initial_secs = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9)
+            self.init = True
 
         cmd_positions = np.zeros((self.nb_agents, 3))
-        self.prev_secs = self.secs
-        self.secs = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9)
-        self.log_time.append(self.secs - self.prev_secs)
+        # self.prev_secs = self.secs
+        # self.secs = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9)
+        # self.log_time.append(self.secs - self.prev_secs)
         
         self.old_desired_positions = self.desired_positions
 
+        #f = []
+
+        
+
         for drone_id in range(1, self.nb_agents):
             cf = self.agents[drone_id]
-            #dt = (cf.secs - cf.prev_secs)*10^-9
-            
+
+            self.previous_time = self.current_time
+            self.current_time = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9) - self.initial_secs
+            dt = self.current_time - self.previous_time
+            self.time_array.append(self.current_time)
+
+            calc_velocities = np.zeros(3)
+            calc_positions = np.zeros(3)
+
             acc_reynold = k_coh*self.__cohesion(cf) + k_sep*self.__separation(cf,drone_id)
+            if np.linalg.norm(acc_reynold) < 0.01:
+                for i in xrange(3): acc_reynold[i] = 0
+           
+            threshold_acc = 1
+            if np.linalg.norm(acc_reynold) > threshold_acc :
+                rospy.logwarn("limited acceleration target")
+                acc_reynold= acc_reynold/np.linalg.norm(acc_reynold)*threshold_acc
+
+            self.acc_array.append(acc_reynold)
             
-            max_acc = 2
+            # for i in xrange(3):
+            #     f.append(lambda y  : acc_reynold[i])
+            #     #calc_velocities[i], _ = scipy.integrate.quad(f[0], 0, self.current_time) #wrong
+
+########################################################################
+            #Calculating the velocity by derivating the acceleration (trapez approx)
+            # for i in xrange(3):
+            #     acc = [acc[i] for acc in self.acc_array]
+            #     calc_velocities[i] = scipy.integrate.trapz(acc, self.time_array, dt)
+
+            self.calc_velocities[drone_id] += acc_reynold*dt
+            calc_velocities = self.calc_velocities[drone_id]
+
+            max_velocity_error = 0.1
+            if np.linalg.norm(calc_velocities)> max_velocity_error: 
+                rospy.logwarn("Limited target_ velocity")
+                calc_velocities = calc_velocities / np.linalg.norm(calc_velocities) * max_velocity_error
+
+            self.vel_array.append(calc_velocities)
+
+########################################################################
+            #Calculating the position by derivating the velocity (trapez approx)
+            
             for i in xrange(3):
-                if acc_reynold[i] > max_acc: acc_reynold[i] = max_acc
-                if acc_reynold[i] < -max_acc: acc_reynold[i] = -max_acc
+                vel = [vel[i] for vel in self.vel_array]
+                calc_positions[i] = scipy.integrate.trapz(vel, self.time_array, dt)
+            
+            self.calc_positions[drone_id] += self.calc_velocities[drone_id]*dt
+            calc_positions = self.calc_positions[drone_id]
+            # rospy.loginfo("acc_array"+str(self.acc_array))
+            # rospy.loginfo("vel_array"+str(self.vel_array))
+            #self.error[drone_id] += self.desired_velocities[drone_id]*dt
+            #self.rel_desired_positions[drone_id] = calc_positions
 
+            if self.debug: 
+                rospy.loginfo("acc_reynold : " + str(drone_id) + str(acc_reynold))
+                rospy.loginfo("coh : " + str(drone_id) + str(k_coh*self.__cohesion(cf)))
+                rospy.loginfo("separation : " + str(drone_id) + str(k_sep*self.__separation(cf, drone_id)))
+                rospy.loginfo("alignement : " + str(drone_id) + str(k_align*self.__alignment(cf)))
+                self.debug_velocities[0].append(calc_velocities)
+                self.debug_velocities[1].append(self.calc_velocities)
+            
+            position_error = calc_positions
 
-            if self.debug: rospy.loginfo("acc_reynold : " + str(drone_id) + str(acc_reynold))
-            if self.debug: rospy.loginfo("coh : " + str(drone_id) + str(k_coh*self.__cohesion(cf)))
-            if self.debug: rospy.loginfo("separation : " + str(drone_id) + str(k_sep*self.__separation(cf, drone_id)))
-            if self.debug: rospy.loginfo("alignement : " + str(drone_id) + str(k_align*self.__alignment(cf)))
+            max_position_error = 0.3
+            if np.linalg.norm(position_error)> max_position_error: 
+                rospy.logwarn("Limited target_position")
+                position_error = position_error / np.linalg.norm(position_error) * max_position_error
+            
+            rospy.loginfo("Position error : " + str(position_error))
 
-            self.desired_velocities[drone_id] += acc_reynold*dt 
+            #self.desired_positions[drone_id] = cf.pos_neu + self.rel_desired_positions[drone_id]
 
-            self.rel_desired_positions[drone_id] += self.desired_velocities[drone_id]*dt
-
-
-            max_relative_dist = 0.1
-
-            for i in xrange(3):
-                if self.rel_desired_positions[drone_id][i] > max_relative_dist: self.rel_desired_positions[drone_id][i] = max_relative_dist
-                if self.rel_desired_positions[drone_id][i] < -max_relative_dist: self.rel_desired_positions[drone_id][i] = -max_relative_dist
-
-            rospy.loginfo("self.rel_desired_positions" + str(self.rel_desired_positions[drone_id]))
-
-            self.desired_positions[drone_id] = cf.pos_neu + self.rel_desired_positions[drone_id]
+            self.pos_array.append(np.copy(position_error))
 
             #PID CONTROL
 
-            u = P*(self.desired_positions[drone_id] - cf.pos_neu) + D*(self.desired_positions[drone_id] - self.old_desired_positions[drone_id])/dt
+            #error = self.desired_positions[drone_id] - cf.pos_neu
+
+            #error = error/np.linalg.norm(error)/np.linalg.norm(acc_reynold)
+
+            u = P*position_error  #+D*(self.desired_positions[drone_id] - self.old_desired_positions[drone_id])/dt
 
             cmd_positions[drone_id] = cf.pos_neu + u
 
