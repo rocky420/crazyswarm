@@ -52,11 +52,17 @@ find_package(PCL REQUIRED)
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+add_message_files(
+  FILES
+  ExperimentState.msg
+)
+
+## Generate added messages and services with any dependencies listed here
+generate_messages(
+  DEPENDENCIES
+   std_msgs
+   geometry_msgs
+)
 
 ## Generate services in the 'srv' folder
 # add_service_files(
@@ -72,11 +78,6 @@ find_package(PCL REQUIRED)
 #   Action2.action
 # )
 
-## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -112,6 +113,7 @@ catkin_package(
 #  LIBRARIES crazyflie
   CATKIN_DEPENDS
     message_runtime
+    
     std_msgs
     tf
     crazyflie_cpp

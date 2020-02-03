@@ -1,0 +1,6 @@
+Header header
+float32 height_error
+float32 extension_error
+geometry_msgs/Vector3 position_error
+int32 experiment_state
+bool emergency_stop

@@ -33,24 +33,6 @@ def hand_tracking_threading(rate):
 def swarm_threading(rate):
     global crazyswarm
     crazyswarm = Crazyswarm(nb_agents = NB_AGENTS, rate= rate)
-    # time.sleep(1)
-
-    # height = 1
-    # duration = 3
-    # crazyswarm.takeoff(height, duration)
-
-    
-    # duration_iter = 10 * frequency
-
-    # for i in xrange(duration_iter):
-    #     crazyswarm.flocking_behaviour(rate)
-    #     rate.sleep()
-
-    # duration = 2
-
-    # crazyswarm.land(duration)
-
-    #time.sleep(10)
 
 
 if __name__ == '__main__':  
@@ -59,26 +41,16 @@ if __name__ == '__main__':
 
     rospy.loginfo("Initializing hand interface node.")
     
-    time.sleep(2)
+    time.sleep(1.5)
 
     rate = rospy.Rate(COMMAND_UPDATE_RATE)
     frequency = 10
 
 
     threading.Thread(target = hand_tracking_threading, args = (rate,)).start()
-
-
     swarm_threading(rate)
 
-    del crazyswarm
+    # del crazyswarm
 
     #threading.Thread(target = swarm_threading, args = (rate,)).start()
 
-
-
-
-    # try:
-
-        
-    # except rospy.ROSInterruptException:
-    #     pass
