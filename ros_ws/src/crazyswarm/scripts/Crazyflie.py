@@ -26,6 +26,9 @@ class Crazyflie:
         self.prev_pos_neu = np.zeros(3)
         self.pos_cmd = np.zeros(3)
 
+        self.previous_position = np.zeros(3)
+        self.new_position = np.zeros(3)
+
         self.vel_neu = np.zeros(3)
 
         self.target_pos = np.zeros(3)

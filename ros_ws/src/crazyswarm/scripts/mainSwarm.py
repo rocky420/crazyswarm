@@ -25,7 +25,7 @@ from crazyflie_driver.msg import Position as PositionMsg
 
 
 COMMAND_UPDATE_RATE = 10 # Hz
-NB_AGENTS = 2
+NB_AGENTS = 3
 
 def hand_tracking_threading(rate):
     hand = Hand(rate)
