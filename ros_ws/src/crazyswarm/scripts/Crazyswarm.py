@@ -172,6 +172,15 @@ class Crazyswarm:
 
         # drone_id = 1
         # plt.figure(1)
+        # rospy.loginfo(self.real_vel_array)
+        # plt.plot(self.real_vel_array)
+        # name = "real velocity"
+        # plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
+        # drone_id = 2
+    
+        #self.agents[0].plot_vel_history()
+        # drone_id = 1
+        # plt.figure(1)
         # plt.plot(self.time_array[drone_id], self.acc_array[drone_id])
         # name = "acc"
         # plt.legend(["target_" + name+ "_x", "target_" + name+ "_y","target_" + name+ "_z"])
@@ -345,7 +354,7 @@ class Crazyswarm:
     def __get_average_velocity(self, dt):
         vel = np.zeros(3)
         for drone_id in xrange(self.nb_agents):
-            velocity = (self.positions[drone_id] - self.prev_positions[drone_id])/dt
+            velocity = self.agents[drone_id].vel_neu
             vel += velocity
         vel/= self.nb_agents
         return vel
@@ -376,9 +385,9 @@ class Crazyswarm:
         average_vel = self.__get_average_velocity(dt)
 
         align = np.zeros(3)
-        align = average_vel - (self.positions[drone_id] - self.prev_positions[drone_id])/dt
+        align = average_vel - self.agents[drone_id].vel_neu
         return align
-
+ 
 
 
     def butter_lowpass(self,cutoff, fs, order=5):
@@ -393,12 +402,11 @@ class Crazyswarm:
         return y
 
     def __slave_cmd_positions(self):
-        k_coh = 2
-        k_sep = 0.8
-        k_align = 0.1
+        P =50
+        k_coh = P*2
+        k_sep = P*0.8
+        k_align = P*0.
 
-        P =57
-        D = 0
         if not self.init:
             self.initial_secs = rospy.get_rostime().secs + rospy.get_rostime().nsecs*pow(10,-9)
             self.init = True
@@ -431,24 +439,26 @@ class Crazyswarm:
 
             self.time_array[drone_id].append(self.current_time)
 
+            if drone_id == 1 :self.real_vel_array.append(self.agents[drone_id].vel_neu)
+
+            
+
             acc_reynold =  k_sep*self.__separation(cf,drone_id)  + k_coh*self.__cohesion(cf) + k_align*self.__alignment(drone_id, dt)
 
-            if np.linalg.norm(acc_reynold) < 0.01:
-                for i in xrange(3): acc_reynold[i] = 0
            
-            threshold_acc = 3.
-            if np.linalg.norm(acc_reynold) > threshold_acc :
-                rospy.logwarn("limited acceleration target")
-                acc_reynold= acc_reynold/np.linalg.norm(acc_reynold)*threshold_acc
+            # threshold_acc = 10.
+            # if np.linalg.norm(acc_reynold) > threshold_acc :
+            #     rospy.logwarn("limited acceleration target")
+            #     acc_reynold= acc_reynold/np.linalg.norm(acc_reynold)*threshold_acc
 
             self.acc_array[drone_id].append(acc_reynold)
-            rospy.loginfo("New position : " + str(drone_id) + " " + str(new_pose) )
-            rospy.loginfo("New previous position : " + str(drone_id) + " " + str(prev_pose) )
+            # rospy.loginfo("New position : " + str(drone_id) + " " + str(new_pose) )
+            # rospy.loginfo("New previous position : " + str(drone_id) + " " + str(prev_pose) )
             
 
 
             #calc_velocities = (self.positions[drone_id] - self.prev_positions[drone_id])/dt + acc_reynold*dt
-            calc_velocities = acc_reynold*dt
+            calc_velocities = cf.vel_neu + acc_reynold*dt
             # self.real_vel_array.append((self.positions[drone_id] - self.prev_positions[drone_id])/dt)
             # cutoff = 5
             # fs = 10
@@ -466,18 +476,19 @@ class Crazyswarm:
                 rospy.loginfo("coh : " + str(drone_id) + str(k_coh*self.__cohesion(cf)))
                 rospy.loginfo("separation : " + str(drone_id) + str(k_sep*self.__separation(cf, drone_id)))
                 rospy.loginfo("alignement : " + str(drone_id) + str(k_align*self.__alignment(drone_id, dt)))
+                rospy.loginfo("Real velocity : " + str(cf.vel_neu))
+                # rospy.loginfo("Real velocity array" + str((self.real_vel_array)))
+                rospy.loginfo("")
                 self.debug_velocities[0].append(calc_velocities)
                 self.debug_velocities[1].append(self.calc_velocities)
             
             position_error = calc_positions
 
-            rospy.loginfo("Position error : " + str(position_error))
-
             self.pos_array[drone_id].append(np.copy(position_error))
 
             #PID CONTROL
-            u = P*position_error  + D* (position_error - self.previous_position_error[drone_id])/dt
-            self.previous_position_error[drone_id] = position_error
+            u = position_error  
+            #self.previous_position_error[drone_id] = position_error
 
             cmd_positions[drone_id] = cf.pos_neu + u
 
