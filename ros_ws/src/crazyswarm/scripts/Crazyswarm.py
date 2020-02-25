@@ -60,14 +60,14 @@ class Crazyswarm:
         self.calc_velocities = np.zeros((self.nb_agents, 3))
         self.calc_positions = np.zeros((self.nb_agents, 3))
 
-        self.acc_array = [[],[],[]]
-        self.vel_array = [[],[],[]]
+        self.acc_array = [[],[],[],[],[]]
+        self.vel_array = [[],[],[],[],[]]
         self.real_vel_array = []
         self.filtered_vel_array = []
-        self.pos_array = [[],[],[]]
-        self.time_array = [[],[],[]]
+        self.pos_array =[[],[],[],[],[]]
+        self.time_array = [[],[],[],[],[]]
 
-        self.real_pos_array = [[],[],[]]
+        self.real_pos_array = [[],[],[],[],[]]
 
         self.debug_velocities = [[],[]]
 
@@ -403,8 +403,8 @@ class Crazyswarm:
 
     def __slave_cmd_positions(self):
         P =50
-        k_coh = P*2
-        k_sep = P*0.8
+        k_coh = P*2.1
+        k_sep = P*0.7
         k_align = P*0.
 
         if not self.init:
