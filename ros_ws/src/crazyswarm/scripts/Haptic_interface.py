@@ -33,6 +33,14 @@ UDP_PORT_DISTANCES = 8051
 allIndexes = ["up", "back", "right", "front", "left", "down"]
 
 
+
+######       WARNING      ##########################################
+
+
+###This class is based on the python script used in simulation in https://github.com/hukohli/Bidirectional_Interface/blob/master/Bidirectional_interface/Haptics/API_Calls/main.py ##################
+###This class is not finished, more specifically, the two classes Bracelets and Glove need some modifications before working!!!                #################
+
+
 class Haptic_interface:
     def __init__(self, device):
         if device =="glove":

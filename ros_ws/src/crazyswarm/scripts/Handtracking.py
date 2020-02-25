@@ -22,10 +22,8 @@ class Hand:
         self.raw_hand_pos = np.zeros(3)
         self.prev_raw_hand_pos = np.zeros(3)
         self.delta_hand_pos = np.zeros(3)
-
         
         cmd_topic = 'hand/pose'
-
 
         #Publishers
         self.hand_pos_pub =  rospy.Publisher(cmd_topic, PositionMsg, queue_size=10)
@@ -43,13 +41,15 @@ class Hand:
         self.hand_pose[2] =  msg.pose.position.z
 
     def  __send_hand_pose(self, rate):
+        #send the delta position of the hand at a given frequency
         while not rospy.is_shutdown():
             self.prev_raw_hand_pos = np.copy(self.raw_hand_pos)
             self.raw_hand_pos = np.copy(self.hand_pose)
 
             self.delta_hand_pos = self.raw_hand_pos - self.prev_raw_hand_pos
 
-            if np.linalg.norm(self.delta_hand_pos) > 1 : 
+            #Security limitation
+            if np.linalg.norm(self.delta_hand_pos) > 2 : 
                 self.delta_hand_pos /= np.linalg.norm(self.delta_hand_pos)
                 rospy.logwarn("Hand security limitations")
 

@@ -25,6 +25,8 @@ from crazyflie_driver.msg import Position as PositionMsg
 
 
 COMMAND_UPDATE_RATE = 10 # Hz
+
+#To be modified depending on the number of drones used
 NB_AGENTS = 5
 
 def hand_tracking_threading(rate):

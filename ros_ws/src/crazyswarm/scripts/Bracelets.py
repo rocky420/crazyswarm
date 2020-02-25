@@ -13,6 +13,10 @@ import keyboard
 import numpy as np
 import rospy
 
+
+### WARNING this class is not finished !!!! based on https://github.com/hukohli/Bidirectional_Interface/blob/master/Bidirectional_interface/Haptics/API_Calls/main.py ######
+
+
 class Bracelets:
     def __init__(self):
 
