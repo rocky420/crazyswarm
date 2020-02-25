@@ -15,10 +15,11 @@ import time, copy
 
 
 class Crazyflie:
-    def __init__(self, id_num):
+    def __init__(self, id_num, debug):
         
         self.id = id_num
         self.init = False
+        self.debug = debug
         
         self.secs = 0
         self.prev_secs = 0
@@ -34,13 +35,9 @@ class Crazyflie:
 
         self.target_pos = np.zeros(3)
 
-
         self.pos_neu_history =  []
-        self.pos_cmd_history =  []
         self.vel_neu_history =  []
         self.dt_history = []
-        self.test = []
-
         
         cmd_topic = '/cf' + str(self.id) + '/cmd_position'
 
@@ -50,24 +47,10 @@ class Crazyflie:
         #Subscribers
         rospy.Subscriber("vrpn_client_node/cf" + str(self.id) + "/pose", PoseStamped, self.__vrpn_pose_callback)
 
-
-
-
-
-    def set_pos_history(self, position_neu):
-        # Set the position history of the drone in the NEU frame
-
-        # Update pos_neu_history
-        np.append(self.pos_neu_history, position_neu)
-
-
-    def set_pos_cmd_history(self, position_cmd):
-        np.append(self.pos_cmd_history, position_cmd)
-
     def set_vel_history(self, vel_neu):
         np.append(self.vel_neu_history, vel_neu)
 
-    def plot_vel_history(self):
+    def plot_vel_and_pos_history(self):
         plt.figure(1)
         plt.plot(self.vel_neu_history)
         plt.legend(["vel_neu_x", "vel_neu_y", "vel_neu_z"])
@@ -80,7 +63,7 @@ class Crazyflie:
         plt.plot(self.dt_history)
         plt.legend(["dt"])
         plt.ylim([-0.01, 0.015])
-    #########################################
+    ################### Private methods ######################
 
     def __vrpn_pose_callback(self, msg):
         
@@ -90,9 +73,10 @@ class Crazyflie:
                 self.prev_pos_neu[i] = np.copy(self.pos_neu[i])
         
         self.secs =  msg.header.stamp.secs + msg.header.stamp.nsecs * pow(10,-9)
-        # rospy.loginfo("time : " + str(self.secs))
-        # rospy.loginfo("previous time : " + str(self.prev_secs))
-        # rospy.loginfo("")
+        if self.debug:    
+            rospy.loginfo("time : " + str(self.secs))
+            rospy.loginfo("previous time : " + str(self.prev_secs))
+            rospy.loginfo("")
 
         self.pos_neu[0] = msg.pose.position.x
         self.pos_neu[1] = msg.pose.position.y
@@ -109,11 +93,13 @@ class Crazyflie:
             self.dt_history.append(np.copy((self.secs - self.prev_secs)))
 
             # After verification, the velocity computed here is correct        
-            # rospy.loginfo("position : " + str(self.pos_neu))
-            # rospy.loginfo("previous position : " + str(self.prev_pos_neu))
-            # rospy.loginfo("delta_t : " + str((self.secs-self.prev_secs)))
-            # rospy.loginfo("Velocity : " + str(self.vel_neu))
-            # rospy.loginfo("")
+            if self.debug:
+                rospy.loginfo("position : " + str(self.pos_neu))
+                rospy.loginfo("previous position : " + str(self.prev_pos_neu))
+                rospy.loginfo("delta_t : " + str((self.secs-self.prev_secs)))
+                rospy.loginfo("Velocity : " + str(self.vel_neu))
+                rospy.loginfo("")
+                rospy.loginfo((self.secs - self.prev_secs))
+
             self.init = True
-        #time.sleep(0.1)
-        #rospy.loginfo((self.secs - self.prev_secs))
+
